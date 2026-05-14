@@ -518,7 +518,7 @@
 
   <script>
     (function () {
-      var PROXY_URL = "/api/coze-proxy";
+      var PROXY_URL = "/api/coze";
 
       var mode = "jd";
       var panels = {
@@ -586,7 +586,7 @@
         fetch(PROXY_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: userContent })
+          body: JSON.stringify({ prompt: userContent })
         })
           .then(function (res) { return res.json(); })
           .then(function (data) {

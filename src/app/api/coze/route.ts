@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server';
 
+export const runtime = 'edge';
+export const maxDuration = 60;
+
 const BOT_ID = '7639263432634122280';
 
 export async function POST(request: NextRequest) {
@@ -89,6 +92,9 @@ export async function POST(request: NextRequest) {
         const decoder = new TextDecoder();
         let buffer = '';
         let currentEvent = '';
+        let thinkingBuffer = '';
+        let answerStarted = false;
+        let startTime = Date.now();
 
         try {
           while (true) {
@@ -124,16 +130,30 @@ export async function POST(request: NextRequest) {
                   const data = JSON.parse(raw);
 
                   if (currentEvent === 'conversation.message.delta') {
-                    // 关键：分离思考过程（reasoning_content）和正式回答（content）
-                    // 只转发正式回答内容，思考过程通过单独的 thinking 事件转发
                     if (data.reasoning_content) {
-                      controller.enqueue(
-                        encoder.encode(
-                          `event:thinking\ndata:${JSON.stringify({ content: data.reasoning_content })}\n\n`
-                        )
-                      );
+                      // 思考过程：累积但不逐字转发，避免大量小数据包
+                      thinkingBuffer += data.reasoning_content;
+                      // 只在思考开始时发一次通知
+                      if (!answerStarted && thinkingBuffer.length <= 5) {
+                        controller.enqueue(
+                          encoder.encode(
+                            `event:thinking_start\ndata:${JSON.stringify({ elapsed: Date.now() - startTime })}\n\n`
+                          )
+                        );
+                      }
                     }
                     if (data.content) {
+                      // 第一次收到正式回答，先一次性发送完整的思考过程
+                      if (!answerStarted) {
+                        answerStarted = true;
+                        if (thinkingBuffer) {
+                          controller.enqueue(
+                            encoder.encode(
+                              `event:thinking\ndata:${JSON.stringify({ content: thinkingBuffer })}\n\n`
+                            )
+                          );
+                        }
+                      }
                       controller.enqueue(
                         encoder.encode(
                           `event:answer\ndata:${JSON.stringify({ content: data.content })}\n\n`
@@ -141,18 +161,17 @@ export async function POST(request: NextRequest) {
                       );
                     }
                   } else if (currentEvent === 'conversation.message.completed') {
-                    // 消息完成事件，标记回答类型
                     if (data.type === 'answer') {
                       controller.enqueue(
                         encoder.encode(
-                          `event:answer_done\ndata:${JSON.stringify({ type: data.type })}\n\n`
+                          `event:answer_done\ndata:${JSON.stringify({ type: data.type, elapsed: Date.now() - startTime })}\n\n`
                         )
                       );
                     }
                   } else if (currentEvent === 'conversation.chat.completed') {
                     controller.enqueue(
                       encoder.encode(
-                        `event:completed\ndata:${JSON.stringify({ chat_id: data.id, conversation_id: data.conversation_id })}\n\n`
+                        `event:completed\ndata:${JSON.stringify({ chat_id: data.id, conversation_id: data.conversation_id, total_ms: Date.now() - startTime })}\n\n`
                       )
                     );
                   } else if (currentEvent === 'conversation.chat.failed') {

@@ -37,16 +37,48 @@ function renderMarkdown(text: string): string {
   html = html.replace(/^(\d+)\.\s+(.+)$/gm, '<li class="md-oli"><span class="oli-num">$1.</span> $2</li>');
   // 无序列表
   html = html.replace(/^[-*]\s+(.+)$/gm, '<li class="md-uli">$1</li>');
-  // 合并连续 li
-  html = html.replace(/(<li class="md-oli">[\s\S]*?<\/li>)/g, '$1');
-  html = html.replace(/(<li class="md-uli">[\s\S]*?<\/li>)/g, '$1');
   // 水平线
   html = html.replace(/^---+$/gm, '<hr class="md-hr" />');
   // 段落：把非标签行用 p 包裹
   html = html.replace(/^(?!<[holu]|<hr|<strong|<em|<code)(.+)$/gm, '<p class="md-p">$1</p>');
-  // 换行
-  html = html.replace(/\n{2,}/g, '\n');
   return html;
+}
+
+/* ---------- 骨架屏动画 ---------- */
+function SkeletonBlock() {
+  return (
+    <div className="skeleton-block">
+      <div className="skeleton-line w-full" />
+      <div className="skeleton-line w-5/6" />
+      <div className="skeleton-line w-4/6" />
+      <div className="skeleton-line w-full" />
+      <div className="skeleton-line w-3/4" />
+    </div>
+  );
+}
+
+/* ---------- 思考进度提示 ---------- */
+function ThinkingProgress({ seconds }: { seconds: number }) {
+  const tips = [
+    '正在分析你的简历与岗位匹配度...',
+    '正在对比技能要求与经验...',
+    '正在生成针对性建议...',
+    '正在优化分析结果...',
+  ];
+  const tipIndex = Math.min(Math.floor(seconds / 5), tips.length - 1);
+
+  return (
+    <div className="thinking-progress">
+      <div className="thinking-progress-bar">
+        <div className="thinking-progress-fill" style={{ width: `${Math.min((seconds / 20) * 100, 90)}%` }} />
+      </div>
+      <div className="thinking-progress-text">
+        <span className="thinking-dots"><span /><span /><span /></span>
+        {tips[tipIndex]}
+        <span className="thinking-timer">{seconds}s</span>
+      </div>
+    </div>
+  );
 }
 
 export default function Home() {
@@ -56,8 +88,10 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [showThinking, setShowThinking] = useState(false);
+  const [thinkingSeconds, setThinkingSeconds] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 表单值
   const [jdText, setJdText] = useState('');
@@ -74,6 +108,26 @@ export default function Home() {
       resultRef.current.scrollTop = resultRef.current.scrollHeight;
     }
   }, [answerText, thinkingText]);
+
+  // 思考计时器
+  useEffect(() => {
+    if (isThinking) {
+      setThinkingSeconds(0);
+      timerRef.current = setInterval(() => {
+        setThinkingSeconds((s) => s + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isThinking]);
 
   const buildPrompt = useCallback(
     (mode: Mode): { prompt: string; error: string } => {
@@ -133,7 +187,7 @@ export default function Home() {
     abortRef.current = controller;
 
     setIsLoading(true);
-    setIsThinking(false);
+    setIsThinking(true);
     setAnswerText('');
     setThinkingText('');
     setShowThinking(false);
@@ -192,16 +246,17 @@ export default function Home() {
 
             try {
               const data = JSON.parse(raw);
-              if (currentEvent === 'thinking' && data.content) {
+              if (currentEvent === 'thinking_start') {
+                // 思考开始通知
+              } else if (currentEvent === 'thinking' && data.content) {
                 hasThinking = true;
-                fullThinking += data.content;
+                fullThinking = data.content;
                 setThinkingText(fullThinking);
-                setIsThinking(true);
+                setShowThinking(true);
               } else if (currentEvent === 'answer' && data.content) {
                 fullAnswer += data.content;
                 setAnswerText(fullAnswer);
-                // 收到正式回答后，思考过程完成
-                if (isThinking) setIsThinking(false);
+                setIsThinking(false);
               } else if (currentEvent === 'answer_done') {
                 setIsThinking(false);
               } else if (currentEvent === 'error') {
@@ -214,9 +269,6 @@ export default function Home() {
         }
       }
 
-      if (hasThinking) {
-        setShowThinking(true);
-      }
       if (!fullAnswer) {
         setAnswerText('（未获取到回复，请重试）');
       }
@@ -228,7 +280,7 @@ export default function Home() {
       setIsThinking(false);
       abortRef.current = null;
     }
-  }, [activeMode, buildPrompt, isThinking]);
+  }, [activeMode, buildPrompt]);
 
   const handleModeChange = (mode: Mode) => {
     if (abortRef.current) {
@@ -243,8 +295,7 @@ export default function Home() {
   };
 
   const activeConfig = MODES.find((m) => m.id === activeMode)!;
-
-  const hasResult = answerText || (isLoading && thinkingText);
+  const hasResult = answerText || isLoading;
 
   return (
     <div className="app-shell">
@@ -350,7 +401,7 @@ export default function Home() {
                 {isLoading ? (
                   <>
                     <span className="btn-spinner" />
-                    {isThinking ? 'AI 正在思考...' : '正在生成分析...'}
+                    {isThinking ? 'AI 深度思考中...' : '正在生成...'}
                   </>
                 ) : (
                   <>开始分析</>
@@ -383,8 +434,16 @@ export default function Home() {
                 </div>
               )}
 
-              {/* 思考过程（可折叠） */}
-              {showThinking && thinkingText && (
+              {/* 思考进度条（思考阶段） */}
+              {isThinking && !answerText && (
+                <ThinkingProgress seconds={thinkingSeconds} />
+              )}
+
+              {/* 思考过程 + 骨架屏 */}
+              {isThinking && !answerText && <SkeletonBlock />}
+
+              {/* 思考过程（完成后可折叠查看） */}
+              {showThinking && thinkingText && !isThinking && (
                 <details className="thinking-block">
                   <summary className="thinking-toggle">
                     <span className="thinking-icon">💭</span>
@@ -392,16 +451,6 @@ export default function Home() {
                   </summary>
                   <div className="thinking-content">{thinkingText}</div>
                 </details>
-              )}
-
-              {/* 正在思考的提示 */}
-              {isThinking && !answerText && (
-                <div className="thinking-indicator">
-                  <span className="thinking-dots">
-                    <span /><span /><span />
-                  </span>
-                  AI 正在深度思考中...
-                </div>
               )}
 
               {/* 正式回答 */}

@@ -757,6 +757,94 @@ details[open] .thinking-toggle::before {
   50% { opacity: 0; }
 }
 
+/* ---- 思考进度条 ---- */
+.thinking-progress {
+  margin-bottom: 16px;
+}
+
+.thinking-progress-bar {
+  height: 3px;
+  background: rgba(108, 99, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.thinking-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--c-accent), var(--c-blue));
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  position: relative;
+}
+
+.thinking-progress-fill::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -1px;
+  width: 20px;
+  height: 5px;
+  background: var(--c-accent);
+  border-radius: 3px;
+  box-shadow: 0 0 12px rgba(108, 99, 255, 0.6);
+  animation: progressGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes progressGlow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.thinking-progress-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--c-text-3);
+}
+
+.thinking-timer {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-accent);
+  background: rgba(108, 99, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* ---- 骨架屏 ---- */
+.skeleton-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.skeleton-line {
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.08) 40%,
+    rgba(255, 255, 255, 0.04) 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+.skeleton-line.w-full { width: 100%; }
+.skeleton-line.w-5\/6 { width: 83.33%; }
+.skeleton-line.w-4\/6 { width: 66.66%; }
+.skeleton-line.w-3\/4 { width: 75%; }
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* ---- 底栏 ---- */
 .app-footer {
   text-align: center;

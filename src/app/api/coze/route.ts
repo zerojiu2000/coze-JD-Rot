@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 
-export const runtime = 'edge';
 export const maxDuration = 60;
 
 const BOT_ID = '7639263432634122280';
